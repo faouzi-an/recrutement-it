@@ -299,8 +299,13 @@ app.patch('/api/needs/:id', authMiddleware, async (req, res) => {
 // ── Candidates ───────────────────────────────────────────────────────────────
 app.get('/api/candidates', authMiddleware, async (_req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM candidates ORDER BY name');
-    res.json(rows);
+    const { rows: candidates } = await pool.query('SELECT * FROM candidates ORDER BY name');
+    const { rows: apps } = await pool.query('SELECT candidate_id, status, updated_at FROM applications ORDER BY updated_at DESC');
+    const latestStatus = {};
+    for (const a of apps) {
+      if (!latestStatus[a.candidate_id]) latestStatus[a.candidate_id] = a.status;
+    }
+    res.json(candidates.map(c => ({ ...c, app_status: latestStatus[c.id] || null })));
   } catch { res.status(500).json({ message: 'Erreur serveur.' }); }
 });
 

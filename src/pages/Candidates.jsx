@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
+const STATUS_LABELS = {
+  cv_received: 'CV reçu', preselected: 'Présélectionné', hr_interview: 'Entretien RH',
+  manager_interview: 'Entretien Manager', technical_test: 'Test technique',
+  offer_sent: 'Offre envoyée', accepted: 'Accepté', rejected: 'Refusé',
+};
+const STATUS_COLORS = {
+  cv_received: 'badge-gray', preselected: 'badge-blue', hr_interview: 'badge-purple',
+  manager_interview: 'badge-yellow', technical_test: 'badge-orange',
+  offer_sent: 'badge-green', accepted: 'badge-green-solid', rejected: 'badge-red',
+};
+
 export default function Candidates() {
   const { token } = useAuth();
   const [candidates, setCandidates] = useState([]);
@@ -139,6 +150,7 @@ export default function Candidates() {
                         <th>Expérience</th>
                         <th>Ville</th>
                         <th>Préavis</th>
+                        <th>Statut</th>
                         <th>Email</th>
                         <th>Téléphone</th>
                       </tr>
@@ -151,6 +163,7 @@ export default function Candidates() {
                           <td>{c.experience_years} an{c.experience_years > 1 ? 's' : ''}</td>
                           <td>{c.ville || '—'}</td>
                           <td><span className={`badge ${c.preavis === 'Immédiat' ? 'badge-green' : 'badge-gray'}`}>{c.preavis || '—'}</span></td>
+                          <td>{c.app_status ? <span className={`badge ${STATUS_COLORS[c.app_status] || 'badge-gray'}`}>{STATUS_LABELS[c.app_status] || c.app_status}</span> : <span className="text-muted">Aucune candidature</span>}</td>
                           <td>{c.email || '—'}</td>
                           <td>{c.phone || '—'}</td>
                         </tr>
