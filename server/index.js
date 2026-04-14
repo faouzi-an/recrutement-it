@@ -382,26 +382,40 @@ app.get('/api/kpis', authMiddleware, async (req, res) => {
       SELECT status, COUNT(*) AS count FROM applications GROUP BY status
     `);
 
-    // Avg recruitment delay by profile (closed needs with at least one accepted)
-    const avgDelayByProfile = await pool.query(`
-      SELECT n.profile,
-             ROUND(AVG(EXTRACT(EPOCH FROM (a.updated_at - n.open_date)) / 86400)) AS avg_days
+    // Avg recruitment delay by profile (accepted applications)
+    const delayRaw = await pool.query(`
+      SELECT n.profile, n.experience_years, n.open_date, a.updated_at, u.name AS manager
       FROM recruitment_needs n
       JOIN applications a ON a.need_id = n.id AND a.status = 'accepted'
-      GROUP BY n.profile
+      LEFT JOIN users u ON u.id = n.manager_id
     `);
 
-    // Avg delay by experience level
-    const avgDelayByExp = await pool.query(`
-      SELECT
-        CASE WHEN n.experience_years <= 2 THEN 'Junior (0-2)'
-             WHEN n.experience_years <= 5 THEN 'Confirmé (3-5)'
-             ELSE 'Senior (6+)' END AS level,
-        ROUND(AVG(EXTRACT(EPOCH FROM (a.updated_at - n.open_date)) / 86400)) AS avg_days
-      FROM recruitment_needs n
-      JOIN applications a ON a.need_id = n.id AND a.status = 'accepted'
-      GROUP BY level
-    `);
+    // Compute delays in JS (pg-mem doesn't support timestamp subtraction)
+    function daysBetween(d1, d2) {
+      return Math.round((new Date(d1) - new Date(d2)) / 86400000);
+    }
+    function avgByKey(rows, keyFn) {
+      const map = {};
+      for (const r of rows) {
+        const k = keyFn(r);
+        if (!map[k]) map[k] = [];
+        map[k].push(daysBetween(r.updated_at, r.open_date));
+      }
+      return Object.entries(map).map(([key, vals]) => ({
+        key, avg_days: Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
+      }));
+    }
+
+    const avgDelayByProfile = avgByKey(delayRaw.rows, r => r.profile)
+      .map(r => ({ profile: r.key, avg_days: r.avg_days }));
+
+    const avgDelayByExp = avgByKey(delayRaw.rows, r => {
+      const y = r.experience_years;
+      return y <= 2 ? 'Junior (0-2)' : y <= 5 ? 'Confirmé (3-5)' : 'Senior (6+)';
+    }).map(r => ({ level: r.key, avg_days: r.avg_days }));
+
+    const avgDelayByManager = avgByKey(delayRaw.rows, r => r.manager || 'N/A')
+      .map(r => ({ manager: r.key, avg_days: r.avg_days }));
 
     // Conversion rate CV -> accepted
     const totalApps = await pool.query('SELECT COUNT(*) AS total FROM applications');
@@ -438,33 +452,28 @@ app.get('/api/kpis', authMiddleware, async (req, res) => {
     const cancelRate = totalNeeds.rows[0].total > 0
       ? ((cancelledNeeds.rows[0].total / totalNeeds.rows[0].total) * 100).toFixed(1) : 0;
 
-    // Avg delay by manager
-    const avgDelayByManager = await pool.query(`
-      SELECT u.name AS manager, ROUND(AVG(EXTRACT(EPOCH FROM (a.updated_at - n.open_date)) / 86400)) AS avg_days
-      FROM recruitment_needs n
-      JOIN applications a ON a.need_id = n.id AND a.status = 'accepted'
-      JOIN users u ON u.id = n.manager_id
-      GROUP BY u.name
-    `);
-
-    // Monthly needs opened
-    const monthlyNeeds = await pool.query(`
-      SELECT TO_CHAR(open_date, 'YYYY-MM') AS month, COUNT(*) AS count
-      FROM recruitment_needs GROUP BY month ORDER BY month
-    `);
+    // Monthly needs opened (computed in JS — pg-mem lacks TO_CHAR)
+    const allNeeds = await pool.query('SELECT open_date FROM recruitment_needs');
+    const monthMap = {};
+    for (const r of allNeeds.rows) {
+      const d = new Date(r.open_date);
+      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthMap[m] = (monthMap[m] || 0) + 1;
+    }
+    const monthlyNeeds = Object.entries(monthMap).sort().map(([month, count]) => ({ month, count }));
 
     res.json({
       needsOverview: needsOverview.rows,
       appsByStatus: appsByStatus.rows,
-      avgDelayByProfile: avgDelayByProfile.rows,
-      avgDelayByExp: avgDelayByExp.rows,
+      avgDelayByProfile,
+      avgDelayByExp,
       conversionRate: Number(conversionRate),
       appsPerNeed: appsPerNeed.rows,
       topProfiles: topProfiles.rows,
       rejectedByStep: rejectedByPrevStep.rows,
       cancelRate: Number(cancelRate),
-      avgDelayByManager: avgDelayByManager.rows,
-      monthlyNeeds: monthlyNeeds.rows,
+      avgDelayByManager,
+      monthlyNeeds,
       totalNeeds: Number(totalNeeds.rows[0].total),
       totalApps: Number(totalApps.rows[0].total),
       totalAccepted: Number(acceptedApps.rows[0].total),
