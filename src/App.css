@@ -291,6 +291,30 @@ a:hover { text-decoration: underline; }
 }
 .loading-screen { min-height: 100vh; }
 
+/* ── Department Accordion ──────────────────────────────────────────────── */
+.dept-accordion { display: flex; flex-direction: column; gap: .5rem; }
+.dept-group { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--gray-200); background: #fff; box-shadow: var(--shadow); }
+.dept-header {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: .85rem 1.25rem; border: none; background: var(--gray-50);
+  cursor: pointer; font-family: inherit; font-size: .9rem; font-weight: 600;
+  color: var(--gray-800); transition: background .2s;
+}
+.dept-header:hover { background: var(--primary-light); }
+.dept-header.open { background: var(--primary-light); color: var(--primary-dark); }
+.dept-header-left { display: flex; align-items: center; gap: .6rem; }
+.dept-chevron { transition: transform .2s; flex-shrink: 0; }
+.dept-header.open .dept-chevron { transform: rotate(90deg); }
+.dept-name { font-size: .9rem; }
+.dept-count {
+  font-size: .72rem; font-weight: 500; color: var(--gray-500);
+  background: var(--gray-200); padding: .15rem .5rem; border-radius: 9999px;
+}
+.dept-header.open .dept-count { background: var(--primary); color: #fff; }
+.dept-body { padding: 0; }
+.dept-body .data-table { box-shadow: none; border-radius: 0; }
+.dept-body .data-table thead th { background: #fff; border-top: 1px solid var(--gray-100); }
+
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .charts-row { grid-template-columns: 1fr; }
