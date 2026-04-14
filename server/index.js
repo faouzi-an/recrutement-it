@@ -223,36 +223,42 @@ app.get('/api/users', authMiddleware, async (_req, res) => {
 app.get('/api/needs', authMiddleware, async (req, res) => {
   try {
     const { status, priority, profile, manager_id, from_date, to_date } = req.query;
-    let q = `SELECT n.*, u.name AS manager_name, c.name AS created_by_name,
-             (SELECT COUNT(*) FROM applications a WHERE a.need_id = n.id) AS application_count
-             FROM recruitment_needs n
-             LEFT JOIN users u ON u.id = n.manager_id
-             LEFT JOIN users c ON c.id = n.created_by
-             WHERE 1=1`;
+    let q = 'SELECT * FROM recruitment_needs WHERE 1=1';
     const vals = [];
     let i = 1;
-    if (status) { q += ` AND n.status = $${i++}`; vals.push(status); }
-    if (priority) { q += ` AND n.priority = $${i++}`; vals.push(priority); }
-    if (profile) { q += ` AND LOWER(n.profile) LIKE $${i++}`; vals.push(`%${profile.toLowerCase()}%`); }
-    if (manager_id) { q += ` AND n.manager_id = $${i++}`; vals.push(Number(manager_id)); }
-    if (from_date) { q += ` AND n.open_date >= $${i++}`; vals.push(from_date); }
-    if (to_date) { q += ` AND n.open_date <= $${i++}`; vals.push(to_date); }
-    q += ' ORDER BY n.created_at DESC';
-    const { rows } = await pool.query(q, vals);
-    res.json(rows);
+    if (status) { q += ` AND status = $${i++}`; vals.push(status); }
+    if (priority) { q += ` AND priority = $${i++}`; vals.push(priority); }
+    if (profile) { q += ` AND LOWER(profile) LIKE $${i++}`; vals.push(`%${profile.toLowerCase()}%`); }
+    if (manager_id) { q += ` AND manager_id = $${i++}`; vals.push(Number(manager_id)); }
+    if (from_date) { q += ` AND open_date >= $${i++}`; vals.push(from_date); }
+    if (to_date) { q += ` AND open_date <= $${i++}`; vals.push(to_date); }
+    q += ' ORDER BY created_at DESC';
+    const { rows: needs } = await pool.query(q, vals);
+
+    // Fetch users and app counts separately (pg-mem doesn't support correlated subqueries)
+    const { rows: users } = await pool.query('SELECT id, name, role FROM users');
+    const { rows: appCounts } = await pool.query('SELECT need_id, COUNT(*) AS count FROM applications GROUP BY need_id');
+    const userMap = Object.fromEntries(users.map(u => [u.id, u.name]));
+    const countMap = Object.fromEntries(appCounts.map(r => [r.need_id, Number(r.count)]));
+
+    const result = needs.map(n => ({
+      ...n,
+      manager_name: userMap[n.manager_id] || null,
+      created_by_name: userMap[n.created_by] || null,
+      application_count: countMap[n.id] || 0,
+    }));
+    res.json(result);
   } catch (err) { console.error(err); res.status(500).json({ message: 'Erreur serveur.' }); }
 });
 
 app.get('/api/needs/:id', authMiddleware, async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT n.*, u.name AS manager_name, c.name AS created_by_name
-       FROM recruitment_needs n
-       LEFT JOIN users u ON u.id = n.manager_id
-       LEFT JOIN users c ON c.id = n.created_by
-       WHERE n.id = $1`, [req.params.id]);
+    const { rows } = await pool.query('SELECT * FROM recruitment_needs WHERE id = $1', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ message: 'Besoin introuvable.' });
-    res.json(rows[0]);
+    const n = rows[0];
+    const { rows: users } = await pool.query('SELECT id, name FROM users WHERE id = $1 OR id = $2', [n.manager_id, n.created_by]);
+    const userMap = Object.fromEntries(users.map(u => [u.id, u.name]));
+    res.json({ ...n, manager_name: userMap[n.manager_id] || null, created_by_name: userMap[n.created_by] || null });
   } catch { res.status(500).json({ message: 'Erreur serveur.' }); }
 });
 
