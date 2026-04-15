@@ -59,6 +59,7 @@ CREATE TABLE candidates (
   email VARCHAR(200),
   phone VARCHAR(30),
   department VARCHAR(100),
+  entity VARCHAR(100),
   profile VARCHAR(120),
   experience_years INT NOT NULL DEFAULT 0,
   ville VARCHAR(100),
@@ -113,19 +114,19 @@ INSERT INTO recruitment_needs (title, profile, experience_years, manager_id, cre
   ('Ingénieur Sécurité','Cybersécurité',5,2,1,'2026-01-15','high','in_progress'),
   ('UX Designer','Design / UX',3,4,3,'2026-03-20','medium','open');
 
-INSERT INTO candidates (name, email, phone, department, profile, experience_years, ville, preavis) VALUES
-  ('Alice Dupont','alice@mail.com','0601020304','Développement','Frontend React',5,'Paris','1 mois'),
-  ('Bob Mercier','bob@mail.com','0605060708','Développement','Backend Java',3,'Lyon','2 mois'),
-  ('Clara Petit','clara@mail.com','0611121314','Design','UX Designer',4,'Paris','1 mois'),
-  ('David Roux','david@mail.com','0615161718','Infrastructure','DevOps / Cloud',6,'Toulouse','3 mois'),
-  ('Emma Laurent','emma@mail.com','0621222324','Infrastructure','Ingénieur Sécurité',3,'Nantes','2 mois'),
-  ('François Bernard','francois@mail.com','0625262728','Data','Data Analyst',2,'Bordeaux','1 mois'),
-  ('Ghislaine Moreau','ghislaine@mail.com','0631323334','Data','Data Engineer',5,'Paris','2 mois'),
-  ('Hugo Simon','hugo@mail.com','0635363738','Développement','Tech Lead Java',8,'Marseille','3 mois'),
-  ('Inès Faure','ines@mail.com','0641424344','Développement','Backend Python',1,'Lyon','Immédiat'),
-  ('Julien Gauthier','julien@mail.com','0645464748','Gestion de projet','Scrum Master',4,'Paris','1 mois'),
-  ('Karim Nasser','karim@mail.com','0651525354','Infrastructure','Architecte Cloud',7,'Lille','3 mois'),
-  ('Léa Fontaine','lea@mail.com','0655565758','QA','QA Automation',3,'Bordeaux','2 mois');
+INSERT INTO candidates (name, email, phone, department, entity, profile, experience_years, ville, preavis) VALUES
+  ('Alice Dupont','alice@mail.com','0601020304','Développement','Web Frontend','Frontend React',5,'Paris','1 mois'),
+  ('Bob Mercier','bob@mail.com','0605060708','Développement','Web Backend','Backend Java',3,'Lyon','2 mois'),
+  ('Clara Petit','clara@mail.com','0611121314','Design','UX/UI','UX Designer',4,'Paris','1 mois'),
+  ('David Roux','david@mail.com','0615161718','Infrastructure','Cloud & DevOps','DevOps / Cloud',6,'Toulouse','3 mois'),
+  ('Emma Laurent','emma@mail.com','0621222324','Infrastructure','Sécurité','Ingénieur Sécurité',3,'Nantes','2 mois'),
+  ('François Bernard','francois@mail.com','0625262728','Data','BI & Analytics','Data Analyst',2,'Bordeaux','1 mois'),
+  ('Ghislaine Moreau','ghislaine@mail.com','0631323334','Data','Data Engineering','Data Engineer',5,'Paris','2 mois'),
+  ('Hugo Simon','hugo@mail.com','0635363738','Développement','Web Backend','Tech Lead Java',8,'Marseille','3 mois'),
+  ('Inès Faure','ines@mail.com','0641424344','Développement','Web Backend','Backend Python',1,'Lyon','Immédiat'),
+  ('Julien Gauthier','julien@mail.com','0645464748','Gestion de projet','PMO','Scrum Master',4,'Paris','1 mois'),
+  ('Karim Nasser','karim@mail.com','0651525354','Infrastructure','Cloud & DevOps','Architecte Cloud',7,'Lille','3 mois'),
+  ('Léa Fontaine','lea@mail.com','0655565758','QA','Automatisation','QA Automation',3,'Bordeaux','2 mois');
 
 INSERT INTO applications (need_id, candidate_id, status, created_at) VALUES
   (1,1,'manager_interview','2026-01-15'),
@@ -310,12 +311,12 @@ app.get('/api/candidates', authMiddleware, async (_req, res) => {
 });
 
 app.post('/api/candidates', authMiddleware, async (req, res) => {
-  const { name, email, phone, department, profile, experience_years, ville, preavis } = req.body;
+  const { name, email, phone, department, entity, profile, experience_years, ville, preavis } = req.body;
   if (!name) return res.status(400).json({ message: 'Nom requis.' });
   try {
     const { rows } = await pool.query(
-      'INSERT INTO candidates (name, email, phone, department, profile, experience_years, ville, preavis) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-      [name, email || null, phone || null, department || null, profile || null, experience_years || 0, ville || null, preavis || null]
+      'INSERT INTO candidates (name, email, phone, department, entity, profile, experience_years, ville, preavis) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+      [name, email || null, phone || null, department || null, entity || null, profile || null, experience_years || 0, ville || null, preavis || null]
     );
     res.status(201).json(rows[0]);
   } catch { res.status(500).json({ message: 'Erreur création candidat.' }); }

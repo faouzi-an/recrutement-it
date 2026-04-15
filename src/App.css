@@ -311,9 +311,21 @@ a:hover { text-decoration: underline; }
   background: var(--gray-200); padding: .15rem .5rem; border-radius: 9999px;
 }
 .dept-header.open .dept-count { background: var(--primary); color: #fff; }
-.dept-body { padding: 0; }
-.dept-body .data-table { box-shadow: none; border-radius: 0; }
-.dept-body .data-table thead th { background: #fff; border-top: 1px solid var(--gray-100); }
+.dept-body { padding: 0 0 0 1rem; }
+.entity-group { border-left: 2px solid var(--gray-200); margin: .25rem 0; }
+.entity-header {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: .6rem 1rem; border: none; background: #fff;
+  cursor: pointer; font-family: inherit; font-size: .82rem; font-weight: 500;
+  color: var(--gray-700); transition: background .2s;
+}
+.entity-header:hover { background: var(--gray-50); }
+.entity-header.open { background: var(--gray-50); color: var(--primary-dark); }
+.entity-header.open .dept-chevron { transform: rotate(90deg); }
+.entity-name { font-size: .82rem; }
+.entity-body { padding: 0 0 0 .5rem; }
+.entity-body .data-table { box-shadow: none; border-radius: 0; }
+.entity-body .data-table thead th { background: #fff; border-top: 1px solid var(--gray-100); }
 
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 1024px) {

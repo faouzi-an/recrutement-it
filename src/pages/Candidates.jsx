@@ -17,9 +17,10 @@ export default function Candidates() {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', department: '', profile: '', experience_years: 0, ville: '', preavis: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', department: '', entity: '', profile: '', experience_years: 0, ville: '', preavis: '' });
   const [search, setSearch] = useState('');
   const [openDepts, setOpenDepts] = useState({});
+  const [openEntities, setOpenEntities] = useState({});
 
   function fetchCandidates() {
     fetch('/api/candidates', { headers: { Authorization: `Bearer ${token}` } })
@@ -38,7 +39,7 @@ export default function Candidates() {
     });
     if (res.ok) {
       setShowForm(false);
-      setForm({ name: '', email: '', phone: '', department: '', profile: '', experience_years: 0, ville: '', preavis: '' });
+      setForm({ name: '', email: '', phone: '', department: '', entity: '', profile: '', experience_years: 0, ville: '', preavis: '' });
       fetchCandidates();
     }
   }
@@ -50,17 +51,26 @@ export default function Candidates() {
     (c.ville && c.ville.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // Group by department
+  // Group by department → entity
   const grouped = {};
   for (const c of filtered) {
     const dept = c.department || 'Non assigné';
-    if (!grouped[dept]) grouped[dept] = [];
-    grouped[dept].push(c);
+    const ent = c.entity || 'Non assignée';
+    if (!grouped[dept]) grouped[dept] = {};
+    if (!grouped[dept][ent]) grouped[dept][ent] = [];
+    grouped[dept][ent].push(c);
   }
   const departments = Object.keys(grouped).sort();
+  const deptCounts = {};
+  for (const dept of departments) {
+    deptCounts[dept] = Object.values(grouped[dept]).reduce((s, arr) => s + arr.length, 0);
+  }
 
   function toggleDept(dept) {
     setOpenDepts(prev => ({ ...prev, [dept]: !prev[dept] }));
+  }
+  function toggleEntity(key) {
+    setOpenEntities(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
   return (
@@ -104,6 +114,11 @@ export default function Candidates() {
                 placeholder="ex: Développement, Data, Infrastructure…" />
             </div>
             <div className="form-group">
+              <label>Entité</label>
+              <input value={form.entity} onChange={e => setForm(f => ({ ...f, entity: e.target.value }))}
+                placeholder="ex: Web Frontend, Cloud & DevOps…" />
+            </div>
+            <div className="form-group">
               <label>Profil</label>
               <input value={form.profile} onChange={e => setForm(f => ({ ...f, profile: e.target.value }))}
                 placeholder="ex: Frontend React, DevOps…" />
@@ -137,39 +152,60 @@ export default function Candidates() {
                     <polyline points="9 18 15 12 9 6" />
                   </svg>
                   <span className="dept-name">{dept}</span>
-                  <span className="dept-count">{grouped[dept].length} candidat{grouped[dept].length > 1 ? 's' : ''}</span>
+                  <span className="dept-count">{deptCounts[dept]} candidat{deptCounts[dept] > 1 ? 's' : ''}</span>
                 </div>
               </button>
               {openDepts[dept] && (
                 <div className="dept-body">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Nom</th>
-                        <th>Profil</th>
-                        <th>Expérience</th>
-                        <th>Ville</th>
-                        <th>Préavis</th>
-                        <th>Statut</th>
-                        <th>Email</th>
-                        <th>Téléphone</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {grouped[dept].map(c => (
-                        <tr key={c.id}>
-                          <td><strong>{c.name}</strong></td>
-                          <td>{c.profile || '—'}</td>
-                          <td>{c.experience_years} an{c.experience_years > 1 ? 's' : ''}</td>
-                          <td>{c.ville || '—'}</td>
-                          <td><span className={`badge ${c.preavis === 'Immédiat' ? 'badge-green' : 'badge-gray'}`}>{c.preavis || '—'}</span></td>
-                          <td>{c.app_status ? <span className={`badge ${STATUS_COLORS[c.app_status] || 'badge-gray'}`}>{STATUS_LABELS[c.app_status] || c.app_status}</span> : <span className="text-muted">Aucune candidature</span>}</td>
-                          <td>{c.email || '—'}</td>
-                          <td>{c.phone || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {Object.keys(grouped[dept]).sort().map(ent => {
+                    const entKey = `${dept}::${ent}`;
+                    const entCandidates = grouped[dept][ent];
+                    return (
+                      <div key={entKey} className="entity-group">
+                        <button className={`entity-header ${openEntities[entKey] ? 'open' : ''}`} onClick={() => toggleEntity(entKey)}>
+                          <div className="dept-header-left">
+                            <svg className="dept-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <polyline points="9 18 15 12 9 6" />
+                            </svg>
+                            <span className="entity-name">{ent}</span>
+                            <span className="dept-count">{entCandidates.length}</span>
+                          </div>
+                        </button>
+                        {openEntities[entKey] && (
+                          <div className="entity-body">
+                            <table className="data-table">
+                              <thead>
+                                <tr>
+                                  <th>Nom</th>
+                                  <th>Profil</th>
+                                  <th>Expérience</th>
+                                  <th>Ville</th>
+                                  <th>Préavis</th>
+                                  <th>Statut</th>
+                                  <th>Email</th>
+                                  <th>Téléphone</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {entCandidates.map(c => (
+                                  <tr key={c.id}>
+                                    <td><strong>{c.name}</strong></td>
+                                    <td>{c.profile || '—'}</td>
+                                    <td>{c.experience_years} an{c.experience_years > 1 ? 's' : ''}</td>
+                                    <td>{c.ville || '—'}</td>
+                                    <td><span className={`badge ${c.preavis === 'Immédiat' ? 'badge-green' : 'badge-gray'}`}>{c.preavis || '—'}</span></td>
+                                    <td>{c.app_status ? <span className={`badge ${STATUS_COLORS[c.app_status] || 'badge-gray'}`}>{STATUS_LABELS[c.app_status] || c.app_status}</span> : <span className="text-muted">—</span>}</td>
+                                    <td>{c.email || '—'}</td>
+                                    <td>{c.phone || '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
