@@ -17,7 +17,7 @@ export default function Candidates() {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', department: '', entity: '', profile: '', experience_years: 0, ville: '', preavis: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', department: '', entity: '', profile: '', experience_years: 0, ville: '', preavis: 0 });
   const [search, setSearch] = useState('');
   const [openDepts, setOpenDepts] = useState({});
   const [openEntities, setOpenEntities] = useState({});
@@ -41,11 +41,11 @@ export default function Candidates() {
     const res = await fetch('/api/candidates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ ...form, experience_years: Number(form.experience_years) }),
+      body: JSON.stringify({ ...form, experience_years: Number(form.experience_years), preavis: Number(form.preavis) }),
     });
     if (res.ok) {
       setShowForm(false);
-      setForm({ name: '', email: '', phone: '', department: '', entity: '', profile: '', experience_years: 0, ville: '', preavis: '' });
+      setForm({ name: '', email: '', phone: '', department: '', entity: '', profile: '', experience_years: 0, ville: '', preavis: 0 });
       fetchCandidates();
     }
   }
@@ -116,7 +116,7 @@ export default function Candidates() {
   }
 
   function openEdit(c) {
-    setEditForm({ name: c.name || '', email: c.email || '', phone: c.phone || '', department: c.department || '', entity: c.entity || '', profile: c.profile || '', experience_years: c.experience_years || 0, ville: c.ville || '', preavis: c.preavis || '' });
+    setEditForm({ name: c.name || '', email: c.email || '', phone: c.phone || '', department: c.department || '', entity: c.entity || '', profile: c.profile || '', experience_years: c.experience_years || 0, ville: c.ville || '', preavis: c.preavis || 0, app_status: c.app_status || '' });
     setEditCandidate(c);
   }
 
@@ -125,7 +125,7 @@ export default function Candidates() {
     const res = await fetch(`/api/candidates/${editCandidate.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ ...editForm, experience_years: Number(editForm.experience_years) }),
+      body: JSON.stringify({ ...editForm, experience_years: Number(editForm.experience_years), preavis: Number(editForm.preavis) }),
     });
     if (res.ok) { setEditCandidate(null); fetchCandidates(); }
     else { const d = await res.json().catch(() => ({})); alert(d.message || 'Erreur'); }
@@ -228,8 +228,8 @@ export default function Candidates() {
               <input value={form.ville} onChange={e => setForm(f => ({ ...f, ville: e.target.value }))} placeholder="ex: Paris, Lyon…" />
             </div>
             <div className="form-group">
-              <label>Préavis</label>
-              <input value={form.preavis} onChange={e => setForm(f => ({ ...f, preavis: e.target.value }))} placeholder="ex: Immédiat, 1 mois, 3 mois…" />
+              <label>Préavis (jours)</label>
+              <input type="number" min="0" value={form.preavis} onChange={e => setForm(f => ({ ...f, preavis: e.target.value }))} placeholder="ex: 0, 30, 60, 90…" />
             </div>
           </div>
           <button type="submit" className="btn btn-primary">Ajouter</button>
@@ -288,7 +288,7 @@ export default function Candidates() {
                                     <td>{c.profile || '—'}</td>
                                     <td>{c.experience_years} an{c.experience_years > 1 ? 's' : ''}</td>
                                     <td>{c.ville || '—'}</td>
-                                    <td><span className={`badge ${c.preavis === 'Immédiat' ? 'badge-green' : 'badge-gray'}`}>{c.preavis || '—'}</span></td>
+                                    <td><span className={`badge ${!c.preavis ? 'badge-green' : 'badge-gray'}`}>{c.preavis ? `${c.preavis} jours` : 'Immédiat'}</span></td>
                                     <td>{c.app_status ? <span className={`badge ${STATUS_COLORS[c.app_status] || 'badge-gray'}`}>{STATUS_LABELS[c.app_status] || c.app_status}</span> : <span className="text-muted">—</span>}</td>
                                     <td>{c.email || '—'}</td>
                                     <td>{c.phone || '—'}</td>
@@ -347,8 +347,15 @@ export default function Candidates() {
                   <input type="number" min="0" value={editForm.experience_years} onChange={e => setEditForm(f => ({ ...f, experience_years: e.target.value }))} /></div>
                 <div className="form-group"><label>Ville</label>
                   <input value={editForm.ville} onChange={e => setEditForm(f => ({ ...f, ville: e.target.value }))} /></div>
-                <div className="form-group"><label>Préavis</label>
-                  <input value={editForm.preavis} onChange={e => setEditForm(f => ({ ...f, preavis: e.target.value }))} /></div>
+                <div className="form-group"><label>Préavis (jours)</label>
+                  <input type="number" min="0" value={editForm.preavis} onChange={e => setEditForm(f => ({ ...f, preavis: e.target.value }))} placeholder="ex: 0, 30, 60, 90…" /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Statut</label>
+                  <select value={editForm.app_status} onChange={e => setEditForm(f => ({ ...f, app_status: e.target.value }))}>
+                    <option value="">— Aucun —</option>
+                    {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select></div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline" onClick={() => setEditCandidate(null)}>Annuler</button>

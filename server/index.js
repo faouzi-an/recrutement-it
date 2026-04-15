@@ -65,7 +65,7 @@ CREATE TABLE candidates (
   profile VARCHAR(120),
   experience_years INT NOT NULL DEFAULT 0,
   ville VARCHAR(100),
-  preavis VARCHAR(50),
+  preavis INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
@@ -117,18 +117,18 @@ INSERT INTO recruitment_needs (title, profile, experience_years, manager_id, cre
   ('UX Designer','Design / UX',3,4,3,'2026-03-20','medium','open');
 
 INSERT INTO candidates (name, email, phone, department, entity, profile, experience_years, ville, preavis) VALUES
-  ('Alice Dupont','alice@mail.com','0601020304','Développement','Web Frontend','Frontend React',5,'Paris','1 mois'),
-  ('Bob Mercier','bob@mail.com','0605060708','Développement','Web Backend','Backend Java',3,'Lyon','2 mois'),
-  ('Clara Petit','clara@mail.com','0611121314','Design','UX/UI','UX Designer',4,'Paris','1 mois'),
-  ('David Roux','david@mail.com','0615161718','Infrastructure','Cloud & DevOps','DevOps / Cloud',6,'Toulouse','3 mois'),
-  ('Emma Laurent','emma@mail.com','0621222324','Infrastructure','Sécurité','Ingénieur Sécurité',3,'Nantes','2 mois'),
-  ('François Bernard','francois@mail.com','0625262728','Data','BI & Analytics','Data Analyst',2,'Bordeaux','1 mois'),
-  ('Ghislaine Moreau','ghislaine@mail.com','0631323334','Data','Data Engineering','Data Engineer',5,'Paris','2 mois'),
-  ('Hugo Simon','hugo@mail.com','0635363738','Développement','Web Backend','Tech Lead Java',8,'Marseille','3 mois'),
-  ('Inès Faure','ines@mail.com','0641424344','Développement','Web Backend','Backend Python',1,'Lyon','Immédiat'),
-  ('Julien Gauthier','julien@mail.com','0645464748','Gestion de projet','PMO','Scrum Master',4,'Paris','1 mois'),
-  ('Karim Nasser','karim@mail.com','0651525354','Infrastructure','Cloud & DevOps','Architecte Cloud',7,'Lille','3 mois'),
-  ('Léa Fontaine','lea@mail.com','0655565758','QA','Automatisation','QA Automation',3,'Bordeaux','2 mois');
+  ('Alice Dupont','alice@mail.com','0601020304','Développement','Web Frontend','Frontend React',5,'Paris',30),
+  ('Bob Mercier','bob@mail.com','0605060708','Développement','Web Backend','Backend Java',3,'Lyon',60),
+  ('Clara Petit','clara@mail.com','0611121314','Design','UX/UI','UX Designer',4,'Paris',30),
+  ('David Roux','david@mail.com','0615161718','Infrastructure','Cloud & DevOps','DevOps / Cloud',6,'Toulouse',90),
+  ('Emma Laurent','emma@mail.com','0621222324','Infrastructure','Sécurité','Ingénieur Sécurité',3,'Nantes',60),
+  ('François Bernard','francois@mail.com','0625262728','Data','BI & Analytics','Data Analyst',2,'Bordeaux',30),
+  ('Ghislaine Moreau','ghislaine@mail.com','0631323334','Data','Data Engineering','Data Engineer',5,'Paris',60),
+  ('Hugo Simon','hugo@mail.com','0635363738','Développement','Web Backend','Tech Lead Java',8,'Marseille',90),
+  ('Inès Faure','ines@mail.com','0641424344','Développement','Web Backend','Backend Python',1,'Lyon',0),
+  ('Julien Gauthier','julien@mail.com','0645464748','Gestion de projet','PMO','Scrum Master',4,'Paris',30),
+  ('Karim Nasser','karim@mail.com','0651525354','Infrastructure','Cloud & DevOps','Architecte Cloud',7,'Lille',90),
+  ('Léa Fontaine','lea@mail.com','0655565758','QA','Automatisation','QA Automation',3,'Bordeaux',60);
 
 INSERT INTO applications (need_id, candidate_id, status, created_at) VALUES
   (1,1,'manager_interview','2026-01-15'),
@@ -318,21 +318,28 @@ app.post('/api/candidates', authMiddleware, async (req, res) => {
   try {
     const { rows } = await pool.query(
       'INSERT INTO candidates (name, email, phone, department, entity, profile, experience_years, ville, preavis) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-      [name, email || null, phone || null, department || null, entity || null, profile || null, experience_years || 0, ville || null, preavis || null]
+      [name, email || null, phone || null, department || null, entity || null, profile || null, experience_years || 0, ville || null, Number(preavis) || 0]
     );
     res.status(201).json(rows[0]);
   } catch { res.status(500).json({ message: 'Erreur création candidat.' }); }
 });
 
 app.put('/api/candidates/:id', authMiddleware, async (req, res) => {
-  const { name, email, phone, department, entity, profile, experience_years, ville, preavis } = req.body;
+  const { name, email, phone, department, entity, profile, experience_years, ville, preavis, app_status } = req.body;
   if (!name) return res.status(400).json({ message: 'Nom requis.' });
   try {
     const { rows } = await pool.query(
       `UPDATE candidates SET name=$1, email=$2, phone=$3, department=$4, entity=$5, profile=$6, experience_years=$7, ville=$8, preavis=$9 WHERE id=$10 RETURNING *`,
-      [name, email || null, phone || null, department || null, entity || null, profile || null, experience_years || 0, ville || null, preavis || null, req.params.id]
+      [name, email || null, phone || null, department || null, entity || null, profile || null, experience_years || 0, ville || null, Number(preavis) || 0, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ message: 'Candidat introuvable.' });
+    // Update application status if provided
+    if (app_status) {
+      const { rows: apps } = await pool.query('SELECT id FROM applications WHERE candidate_id=$1 ORDER BY created_at DESC', [req.params.id]);
+      if (apps.length) {
+        await pool.query('UPDATE applications SET status=$1, updated_at=NOW() WHERE id=$2', [app_status, apps[0].id]);
+      }
+    }
     res.json(rows[0]);
   } catch { res.status(500).json({ message: 'Erreur modification candidat.' }); }
 });
@@ -355,7 +362,7 @@ app.get('/api/candidates/export', authMiddleware, async (_req, res) => {
       'Nom': r.name, 'Email': r.email || '', 'Téléphone': r.phone || '',
       'Département': r.department || '', 'Entité': r.entity || '',
       'Profil': r.profile || '', 'Expérience (années)': r.experience_years || 0,
-      'Ville': r.ville || '', 'Préavis': r.preavis || '',
+      'Ville': r.ville || '', 'Préavis (jours)': r.preavis || 0,
     }));
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(data);
@@ -392,7 +399,7 @@ app.post('/api/candidates/import', authMiddleware, upload.single('file'), async 
       const profile = r['Profil'] || r['profil'] || r['Profile'] || r['profile'] || null;
       const experience_years = Number(r['Expérience (années)'] || r['experience_years'] || r['Expérience'] || 0);
       const ville = r['Ville'] || r['ville'] || r['City'] || null;
-      const preavis = r['Préavis'] || r['préavis'] || r['preavis'] || null;
+      const preavis = Number(r['Préavis (jours)'] || r['Préavis'] || r['préavis'] || r['preavis'] || 0);
       try {
         await pool.query(
           'INSERT INTO candidates (name, email, phone, department, entity, profile, experience_years, ville, preavis) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
