@@ -21,6 +21,8 @@ export default function Candidates() {
   const [search, setSearch] = useState('');
   const [openDepts, setOpenDepts] = useState({});
   const [openEntities, setOpenEntities] = useState({});
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   function fetchCandidates() {
     fetch('/api/candidates', { headers: { Authorization: `Bearer ${token}` } })
@@ -73,6 +75,42 @@ export default function Candidates() {
     setOpenEntities(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
+  async function handleExport() {
+    try {
+      const res = await fetch('/api/candidates/export', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'candidats.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { alert('Erreur lors de l\'export.'); }
+  }
+
+  async function handleImport(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/candidates/import', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Erreur');
+      setImportResult(data);
+      fetchCandidates();
+    } catch (err) { alert(err.message || 'Erreur lors de l\'import.'); }
+    finally { setImporting(false); }
+  }
+
   return (
     <div className="candidates-page">
       <div className="page-header">
@@ -80,10 +118,33 @@ export default function Candidates() {
           <h1>Candidats</h1>
           <p className="page-subtitle">{filtered.length} candidat{filtered.length > 1 ? 's' : ''} · {departments.length} département{departments.length > 1 ? 's' : ''}</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Annuler' : '+ Nouveau candidat'}
-        </button>
+        <div className="page-header-actions">
+          <button className="btn btn-outline" onClick={handleExport} title="Exporter en Excel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Excel
+          </button>
+          <label className={`btn btn-outline${importing ? ' btn-disabled' : ''}`} title="Importer depuis Excel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            {importing ? 'Import…' : 'Import Excel'}
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} hidden disabled={importing} />
+          </label>
+          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+            {showForm ? 'Annuler' : '+ Nouveau candidat'}
+          </button>
+        </div>
       </div>
+
+      {importResult && (
+        <div className={`card import-result ${importResult.errors?.length ? 'import-result-warn' : 'import-result-ok'}`}>
+          <p><strong>{importResult.imported}</strong> candidat{importResult.imported > 1 ? 's' : ''} importé{importResult.imported > 1 ? 's' : ''} sur {importResult.total}.</p>
+          {importResult.errors?.length > 0 && (
+            <details><summary>{importResult.errors.length} erreur{importResult.errors.length > 1 ? 's' : ''}</summary>
+              <ul>{importResult.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+            </details>
+          )}
+          <button className="btn-close-sm" onClick={() => setImportResult(null)}>✕</button>
+        </div>
+      )}
 
       <div className="filters-bar">
         <input type="text" placeholder="Rechercher par nom, email, profil ou ville…" value={search}

@@ -5,6 +5,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { Pool } from 'pg';
 import { newDb } from 'pg-mem';
+import * as XLSX from 'xlsx';
+import multer from 'multer';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -320,6 +322,64 @@ app.post('/api/candidates', authMiddleware, async (req, res) => {
     );
     res.status(201).json(rows[0]);
   } catch { res.status(500).json({ message: 'Erreur création candidat.' }); }
+});
+
+// ── Export Excel ──────────────────────────────────────────────────────────────
+app.get('/api/candidates/export', authMiddleware, async (_req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT name, email, phone, department, entity, profile, experience_years, ville, preavis FROM candidates ORDER BY department, entity, name');
+    const data = rows.map(r => ({
+      'Nom': r.name, 'Email': r.email || '', 'Téléphone': r.phone || '',
+      'Département': r.department || '', 'Entité': r.entity || '',
+      'Profil': r.profile || '', 'Expérience (années)': r.experience_years || 0,
+      'Ville': r.ville || '', 'Préavis': r.preavis || '',
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [{ wch: 22 }, { wch: 28 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 8 }, { wch: 14 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Candidats');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Disposition', 'attachment; filename=candidats.xlsx');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(Buffer.from(buf));
+  } catch (err) { console.error(err); res.status(500).json({ message: 'Erreur export.' }); }
+});
+
+// ── Import Excel ──────────────────────────────────────────────────────────────
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+app.post('/api/candidates/import', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Fichier manquant.' });
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws);
+    if (!rows.length) return res.status(400).json({ message: 'Fichier vide.' });
+
+    let imported = 0;
+    const errors = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const name = r['Nom'] || r['nom'] || r['Name'] || r['name'];
+      if (!name) { errors.push(`Ligne ${i + 2}: nom manquant`); continue; }
+      const email = r['Email'] || r['email'] || null;
+      const phone = r['Téléphone'] || r['telephone'] || r['Phone'] || r['phone'] || null;
+      const department = r['Département'] || r['département'] || r['Department'] || r['department'] || null;
+      const entity = r['Entité'] || r['entité'] || r['Entity'] || r['entity'] || null;
+      const profile = r['Profil'] || r['profil'] || r['Profile'] || r['profile'] || null;
+      const experience_years = Number(r['Expérience (années)'] || r['experience_years'] || r['Expérience'] || 0);
+      const ville = r['Ville'] || r['ville'] || r['City'] || null;
+      const preavis = r['Préavis'] || r['préavis'] || r['preavis'] || null;
+      try {
+        await pool.query(
+          'INSERT INTO candidates (name, email, phone, department, entity, profile, experience_years, ville, preavis) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+          [name, email, phone, department, entity, profile, experience_years, ville, preavis]
+        );
+        imported++;
+      } catch (e) { errors.push(`Ligne ${i + 2}: ${e.message || 'erreur insertion'}`); }
+    }
+    res.json({ imported, total: rows.length, errors });
+  } catch (err) { console.error(err); res.status(500).json({ message: 'Erreur import.' }); }
 });
 
 // ── Applications ─────────────────────────────────────────────────────────────

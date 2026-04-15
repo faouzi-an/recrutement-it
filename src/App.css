@@ -112,6 +112,7 @@ a:hover { text-decoration: underline; }
 }
 .page-header h1 { font-size: 1.6rem; font-weight: 700; color: var(--gray-900); }
 .page-subtitle { color: var(--gray-500); font-size: .85rem; margin-top: .15rem; }
+.page-header-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 
 /* ── Buttons ───────────────────────────────────────────────────────────── */
 .btn {
@@ -127,6 +128,24 @@ a:hover { text-decoration: underline; }
 .btn-sm { padding: .35rem .7rem; font-size: .78rem; }
 .btn-full { width: 100%; justify-content: center; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-disabled { opacity: .5; pointer-events: none; }
+label.btn { cursor: pointer; }
+
+/* ── Import result ─────────────────────────────────────────────────────── */
+.import-result {
+  position: relative; padding: .8rem 2.5rem .8rem 1rem; border-radius: var(--radius);
+  font-size: .85rem; margin-bottom: 1rem;
+}
+.import-result-ok { background: #ecfdf5; border: 1px solid #6ee7b7; color: #065f46; }
+.import-result-warn { background: #fffbeb; border: 1px solid #fbbf24; color: #92400e; }
+.import-result details { margin-top: .4rem; }
+.import-result summary { cursor: pointer; font-size: .8rem; }
+.import-result ul { margin: .3rem 0 0 1rem; font-size: .78rem; }
+.btn-close-sm {
+  position: absolute; top: .5rem; right: .5rem; background: none;
+  border: none; cursor: pointer; font-size: .9rem; color: inherit; opacity: .6;
+}
+.btn-close-sm:hover { opacity: 1; }
 
 /* ── Forms ──────────────────────────────────────────────────────────────── */
 .form-group { display: flex; flex-direction: column; gap: .3rem; flex: 1; }
