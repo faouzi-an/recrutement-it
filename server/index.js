@@ -324,6 +324,29 @@ app.post('/api/candidates', authMiddleware, async (req, res) => {
   } catch { res.status(500).json({ message: 'Erreur création candidat.' }); }
 });
 
+app.put('/api/candidates/:id', authMiddleware, async (req, res) => {
+  const { name, email, phone, department, entity, profile, experience_years, ville, preavis } = req.body;
+  if (!name) return res.status(400).json({ message: 'Nom requis.' });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE candidates SET name=$1, email=$2, phone=$3, department=$4, entity=$5, profile=$6, experience_years=$7, ville=$8, preavis=$9 WHERE id=$10 RETURNING *`,
+      [name, email || null, phone || null, department || null, entity || null, profile || null, experience_years || 0, ville || null, preavis || null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ message: 'Candidat introuvable.' });
+    res.json(rows[0]);
+  } catch { res.status(500).json({ message: 'Erreur modification candidat.' }); }
+});
+
+app.delete('/api/candidates/:id', authMiddleware, async (req, res) => {
+  const { motif } = req.body || {};
+  try {
+    const { rows } = await pool.query('DELETE FROM candidates WHERE id=$1 RETURNING *', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ message: 'Candidat introuvable.' });
+    console.log(`Candidat ${rows[0].name} (id=${rows[0].id}) supprimé. Motif: ${motif || 'non précisé'}`);
+    res.json({ message: 'Candidat supprimé.', candidate: rows[0], motif });
+  } catch { res.status(500).json({ message: 'Erreur suppression candidat.' }); }
+});
+
 // ── Export Excel ──────────────────────────────────────────────────────────────
 app.get('/api/candidates/export', authMiddleware, async (_req, res) => {
   try {

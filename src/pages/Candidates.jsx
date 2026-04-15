@@ -23,6 +23,10 @@ export default function Candidates() {
   const [openEntities, setOpenEntities] = useState({});
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [editCandidate, setEditCandidate] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
+  const [deleteMotif, setDeleteMotif] = useState('');
 
   function fetchCandidates() {
     fetch('/api/candidates', { headers: { Authorization: `Bearer ${token}` } })
@@ -109,6 +113,35 @@ export default function Candidates() {
       fetchCandidates();
     } catch (err) { alert(err.message || 'Erreur lors de l\'import.'); }
     finally { setImporting(false); }
+  }
+
+  function openEdit(c) {
+    setEditForm({ name: c.name || '', email: c.email || '', phone: c.phone || '', department: c.department || '', entity: c.entity || '', profile: c.profile || '', experience_years: c.experience_years || 0, ville: c.ville || '', preavis: c.preavis || '' });
+    setEditCandidate(c);
+  }
+
+  async function handleEdit(e) {
+    e.preventDefault();
+    const res = await fetch(`/api/candidates/${editCandidate.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ...editForm, experience_years: Number(editForm.experience_years) }),
+    });
+    if (res.ok) { setEditCandidate(null); fetchCandidates(); }
+    else { const d = await res.json().catch(() => ({})); alert(d.message || 'Erreur'); }
+  }
+
+  function openDelete(c) { setDeleteCandidate(c); setDeleteMotif(''); }
+
+  async function handleDelete() {
+    if (!deleteMotif.trim()) return alert('Veuillez saisir un motif.');
+    const res = await fetch(`/api/candidates/${deleteCandidate.id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ motif: deleteMotif.trim() }),
+    });
+    if (res.ok) { setDeleteCandidate(null); fetchCandidates(); }
+    else { const d = await res.json().catch(() => ({})); alert(d.message || 'Erreur'); }
   }
 
   return (
@@ -245,6 +278,7 @@ export default function Candidates() {
                                   <th>Statut</th>
                                   <th>Email</th>
                                   <th>Téléphone</th>
+                                  <th>Actions</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -258,6 +292,14 @@ export default function Candidates() {
                                     <td>{c.app_status ? <span className={`badge ${STATUS_COLORS[c.app_status] || 'badge-gray'}`}>{STATUS_LABELS[c.app_status] || c.app_status}</span> : <span className="text-muted">—</span>}</td>
                                     <td>{c.email || '—'}</td>
                                     <td>{c.phone || '—'}</td>
+                                    <td className="actions-cell">
+                                      <button className="btn-icon btn-icon-edit" title="Modifier" onClick={() => openEdit(c)}>
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                      </button>
+                                      <button className="btn-icon btn-icon-delete" title="Supprimer" onClick={() => openDelete(c)}>
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                      </button>
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -272,6 +314,70 @@ export default function Candidates() {
             </div>
           ))}
           {departments.length === 0 && <p className="text-muted text-center">Aucun candidat trouvé.</p>}
+        </div>
+      )}
+
+      {/* Modal Modifier */}
+      {editCandidate && (
+        <div className="modal-overlay" onClick={() => setEditCandidate(null)}>
+          <div className="modal-content modal-lg" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Modifier le candidat</h3>
+              <button className="btn-close-sm" onClick={() => setEditCandidate(null)}>✕</button>
+            </div>
+            <form onSubmit={handleEdit}>
+              <div className="form-row">
+                <div className="form-group"><label>Nom complet</label>
+                  <input required value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></div>
+                <div className="form-group"><label>Email</label>
+                  <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} /></div>
+                <div className="form-group"><label>Téléphone</label>
+                  <input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Département</label>
+                  <input value={editForm.department} onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))} /></div>
+                <div className="form-group"><label>Entité</label>
+                  <input value={editForm.entity} onChange={e => setEditForm(f => ({ ...f, entity: e.target.value }))} /></div>
+                <div className="form-group"><label>Profil</label>
+                  <input value={editForm.profile} onChange={e => setEditForm(f => ({ ...f, profile: e.target.value }))} /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Expérience (années)</label>
+                  <input type="number" min="0" value={editForm.experience_years} onChange={e => setEditForm(f => ({ ...f, experience_years: e.target.value }))} /></div>
+                <div className="form-group"><label>Ville</label>
+                  <input value={editForm.ville} onChange={e => setEditForm(f => ({ ...f, ville: e.target.value }))} /></div>
+                <div className="form-group"><label>Préavis</label>
+                  <input value={editForm.preavis} onChange={e => setEditForm(f => ({ ...f, preavis: e.target.value }))} /></div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={() => setEditCandidate(null)}>Annuler</button>
+                <button type="submit" className="btn btn-primary">Enregistrer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Supprimer */}
+      {deleteCandidate && (
+        <div className="modal-overlay" onClick={() => setDeleteCandidate(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Supprimer le candidat</h3>
+              <button className="btn-close-sm" onClick={() => setDeleteCandidate(null)}>✕</button>
+            </div>
+            <p className="modal-body-text">Vous allez supprimer <strong>{deleteCandidate.name}</strong>. Cette action est irréversible.</p>
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label>Motif de suppression <span className="text-danger">*</span></label>
+              <textarea rows="3" required value={deleteMotif} onChange={e => setDeleteMotif(e.target.value)}
+                placeholder="Ex: Doublon, candidat non qualifié, demande du candidat…" />
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setDeleteCandidate(null)}>Annuler</button>
+              <button className="btn btn-danger" onClick={handleDelete}>Supprimer</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
